@@ -1,5 +1,5 @@
 const EventEmitter = require('events');
-EventEmitter.defaultMaxListeners = 200;
+EventEmitter.defaultMaxListeners = 500;
 const {
   default: makeWASocket,
     useMultiFileAuthState,
@@ -2166,122 +2166,6 @@ ${CREATER}`;
     }
 });
 //============ video download ================
-
-cmd({
-    pattern: "video2",
-    alias: ["ytmp4", "mp4", "ytv"],
-    desc: "Download YouTube videos",
-    category: "download",
-    react: "🎥",
-    filename: __filename
-}, async (conn, mek, m, { from, q, reply }) => {
-    try {
-        if (!q) return await reply("❌ Please provide a video name or YouTube URL!");
-
-        // Search on YouTube if query is not a link
-        let url = q;
-        let videoData = null;
-
-        if (!q.includes("youtube.com") && !q.includes("youtu.be")) {
-            const { videos } = await yts(q);
-            if (!videos || videos.length === 0) return await reply("❌ No results found!");
-            videoData = videos[0]; // Save video metadata
-            url = videos[0].url;
-        }
-
-        const api = `https://gtech-api-xtp1.onrender.com/api/video/yt?apikey=APIKEY&url=${encodeURIComponent(url)}`;
-        const res = await axios.get(api);
-        const json = res.data;
-
-        if (!json?.status || !json?.result?.media) {
-            return await reply("❌ Download failed! Try again later.");
-        }
-
-        const media = json.result.media;
-        const videoUrl = media.video_url_hd !== "No HD video URL available"
-            ? media.video_url_hd
-            : media.video_url_sd !== "No SD video URL available"
-                ? media.video_url_sd
-                : null;
-
-        if (!videoUrl) return await reply("❌ No downloadable video found!");
-
-        // Thumbnail fallback
-        const thumb = media.thumbnail || videoData?.thumbnail;
-
-        // Prepare caption
-        let desc = `*${BOT} VIDEO DOWNLOADER* 🎥
-
-🎥 *Title:* ${media.title || videoData?.title || "Unknown"}
-⏱️ *Duration:* ${media.duration || videoData?.timestamp || "Unknown"}
-📅 *Uploaded:* ${media.published || videoData?.ago || "Unknown"}
-🎭 *Views:* ${media.views || videoData?.views || "Unknown"}
-
-*Select Download Format:*
-
-*1 ||* Video File  🎥
-*2 ||* Document File  📂
-
-${CREATER}`;
-
-        // Send menu with thumbnail
-        const sentMessage = await conn.sendMessage(from, {
-            image: { url: thumb },
-            caption: desc
-        }, { quoted: mek });
-
-        // One-time reply handler
-        const handler = async (update) => {
-            const msg = update.messages[0];
-            if (!msg.message?.extendedTextMessage) return;
-
-            const userReply = msg.message.extendedTextMessage.text.trim();
-
-            // Ensure it's a reply to the bot's menu message in the same chat
-            if (
-                msg.key.remoteJid === from &&
-                msg.message.extendedTextMessage.contextInfo?.stanzaId === sentMessage.key.id
-            ) {
-                // Remove listener after one reply
-                conn.ev.on("messages.upsert", handler);
-
-                await conn.sendMessage(from, { 
-                    react: { text: "⬆️", key: msg.key } 
-                });
-
-                switch (userReply) {
-                    case "1": // Send as video
-                        await conn.sendMessage(from, {
-                            video: { url: videoUrl },
-                            caption: `${CREATER}`
-                        }, { quoted: mek });
-                        break;
-
-                    case "2": // Send as document
-                        await conn.sendMessage(from, {
-                            document: { url: videoUrl },
-                            mimetype: "video/mp4",
-                            fileName: `${media.title || "video"}.mp4`,
-                            caption: `${CREATER}`
-                        }, { quoted: mek });
-                        break;
-
-                    default:
-                        reply("*❌ Invalid Option. Please select 1 or 2.*");
-                        break;
-                }
-            }
-        };
-
-        conn.ev.on("messages.upsert", handler);
-
-    } catch (e) {
-        console.error(e);
-        reply(`❌ Error: ${e.message}`);
-    }
-});
-
-
 let ytvHandlerSet = false; // Prevent multiple registrations
 
 cmd({
@@ -2848,7 +2732,39 @@ cmd({
   }
 });
 //============= fb download ==============
+cmd({
+  pattern: "facebook",
+  alias: ["fb"],
+  react: "📥",
+  desc: "Download Facebook video",
+  category: "download",
+  use: "<url>",
+  filename: __filename
+}, async (conn, m, mek, { from, reply, q }) => {
+  try {
+    if (!q) return reply("❌ Please provide a Facebook URL!");
+    const url = `https://delirius-apiofc.vercel.app/download/facebook?url=${encodeURIComponent(q)}`;
+    
+    const res = await fetch(url);
+    const data = await res.json();
 
+    if (!data || !data.urls || data.urls.length === 0) {
+      return reply("❌ Unable to fetch video.");
+    }
+
+    const video = data.urls.find(v => v.hd) || data.urls[0]; // Prefer HD if available
+    const videoUrl = video.hd || video.sd;
+
+    await conn.sendMessage(from, { 
+      video: { url: videoUrl }, 
+      caption: `📌 Title: ${data.title}\n💾 Quality: ${video.hd ? "HD" : "SD"}` 
+    }, { quoted: m });
+
+  } catch (err) {
+    console.error(err);
+    reply("❌ An error occurred while downloading the video.");
+  }
+});
 //============== tiktok download ==================
 let tiktokHandlerSet = false; // Prevent multiple event registrations
 
